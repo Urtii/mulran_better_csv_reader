@@ -1,3 +1,8 @@
+This fork uses [Ben Strasser's](https://github.com/ben-strasser) [fast-cpp-csv-parser](https://github.com/ben-strasser/fast-cpp-csv-parser) repository to parse .csv files to avoid problems related to fscanf().
+
+Currently, only IMU data is parsed with default 17 columnsize.
+Tested only on Riverside 1&2 dataset using melodic. 
+
 # File player for MulRan dataset
 
 Maintainer: Giseop Kim (paulgkim@kaist.ac.kr)

@@ -1,8 +1,12 @@
+#define CSV_IO_NO_THREAD
+
 #include <QMutexLocker>
 
 #include "ROSThread.h"
 
-using namespace std;
+#include "fast-cpp-csv-parser/csv.h"
+
+    using namespace std;
 
 struct PointXYZIRT {
   PCL_ADD_POINT4D;
@@ -169,20 +173,17 @@ ROSThread::Ready()
   //Read IMU data
   if(imu_active_)
   {
-    fp = fopen((data_folder_path_+"/sensor_data/xsens_imu.csv").c_str(),"r");
-    double q_x,q_y,q_z,q_w,x,y,z,g_x,g_y,g_z,a_x,a_y,a_z,m_x,m_y,m_z;
-    // irp_sen_msgs::imu imu_data_origin;
+    io::CSVReader<17> in((data_folder_path_ + "/sensor_data/xsens_imu.csv").c_str());
+    double q_x, q_y, q_z, q_w, x, y, z, g_x, g_y, g_z, a_x, a_y, a_z, m_x, m_y,
+        m_z;
     sensor_msgs::Imu imu_data;
     sensor_msgs::MagneticField mag_data;
     imu_data_.clear();
     mag_data_.clear();
-    // cout << imu_data << endl ;
-    while(1)
-    {
-      int length = fscanf(fp,"%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n", \
-                          &stamp,&q_x,&q_y,&q_z,&q_w,&x,&y,&z,&g_x,&g_y,&g_z,&a_x,&a_y,&a_z,&m_x,&m_y,&m_z);
-      if(length != 8 && length != 17)
-        break;
+    int length = 17; // Only 17 columned IMU data supported currently
+    while (in.read_row(stamp, q_x, q_y, q_z, q_w, x, y, z, g_x, g_y, g_z, a_x,
+                       a_y, a_z, m_x, m_y, m_z)) {
+      /*
       if(length == 8)
       {
         imu_data.header.stamp.fromNSec(stamp);
@@ -207,6 +208,8 @@ ROSThread::Ready()
         // imu_data_origin_[stamp] = imu_data_origin;
       }
       else if(length == 17)
+      */
+      if(length == 17)
       {
         imu_data.header.stamp.fromNSec(stamp);
         imu_data.header.frame_id = "imu";
@@ -261,7 +264,6 @@ ROSThread::Ready()
       }
     }
     cout << "IMU data are loaded" << endl;
-    fclose(fp);
   } // read IMU
 
   ouster_file_list_.clear();
