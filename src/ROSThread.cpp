@@ -1,12 +1,10 @@
 #define CSV_IO_NO_THREAD
 
 #include <QMutexLocker>
-
 #include "ROSThread.h"
-
 #include "fast-cpp-csv-parser/csv.h"
 
-    using namespace std;
+using namespace std;
 
 struct PointXYZIRT {
   PCL_ADD_POINT4D;
@@ -147,128 +145,6 @@ ROSThread::Ready()
   initial_data_stamp_ = data_stamp_.begin()->first - 1;
   last_data_stamp_ = prev(data_stamp_.end(),1)->first - 1;
 
-
-  //Read gps data
-  //fp = fopen((data_folder_path_+"/sensor_data/gps.csv").c_str(),"r");
-  io::CSVReader<17> in((data_folder_path_ + "/sensor_data/gps.csv").c_str());
-  double latitude, longitude, altitude, altitude_orthometric;
-  double cov[9];
-  sensor_msgs::NavSatFix gps_data;
-  gps_data_.clear();
-  //while( fscanf(fp,"%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
-  //              &stamp,&latitude,&longitude,&altitude,&cov[0],&cov[1],&cov[2],&cov[3],&cov[4],&cov[5],&cov[6],&cov[7],&cov[8])
-  //       == 13
-  //       )
-  while (in.read_row(stamp, latitude, longitude, altitude, cov[0], cov[1],
-                     cov[2], cov[3], cov[4], cov[5], cov[6], cov[7], cov[8])) {
-    gps_data.header.stamp.fromNSec(stamp);
-    gps_data.header.frame_id = "gps";
-    gps_data.latitude = latitude;
-    gps_data.longitude = longitude;
-    gps_data.altitude = altitude;
-    for(int i = 0 ; i < 9 ; i ++) gps_data.position_covariance[i] = cov[i];
-    gps_data_[stamp] = gps_data;
-  }
-  cout << "Gps data are loaded" << endl;
-
-  fclose(fp);
-
-  //Read IMU data
-  if(imu_active_)
-  {
-    io::CSVReader<17> in((data_folder_path_ + "/sensor_data/xsens_imu.csv").c_str());
-    double q_x, q_y, q_z, q_w, x, y, z, g_x, g_y, g_z, a_x, a_y, a_z, m_x, m_y,
-        m_z;
-    sensor_msgs::Imu imu_data;
-    sensor_msgs::MagneticField mag_data;
-    imu_data_.clear();
-    mag_data_.clear();
-    int length = 17; // Only 17 columned IMU data supported currently
-    while (in.read_row(stamp, q_x, q_y, q_z, q_w, x, y, z, g_x, g_y, g_z, a_x,
-                       a_y, a_z, m_x, m_y, m_z)) {
-      /*
-      if(length == 8)
-      {
-        imu_data.header.stamp.fromNSec(stamp);
-        imu_data.header.frame_id = "imu";
-        imu_data.orientation.x = q_x;
-        imu_data.orientation.y = q_y;
-        imu_data.orientation.z = q_z;
-        imu_data.orientation.w = q_w;
-
-        imu_data_[stamp] = imu_data;
-        imu_data_version_ = 1;
-
-        // imu_data_origin.header.stamp.fromNSec(stamp);
-        // imu_data_origin.header.frame_id = "imu";
-        // imu_data_origin.quaternion_data.x = q_x;
-        // imu_data_origin.quaternion_data.y = q_y;
-        // imu_data_origin.quaternion_data.z = q_z;
-        // imu_data_origin.quaternion_data.w = q_w;
-        // imu_data_origin.eular_data.x = x;
-        // imu_data_origin.eular_data.y = y;
-        // imu_data_origin.eular_data.z = z;
-        // imu_data_origin_[stamp] = imu_data_origin;
-      }
-      else if(length == 17)
-      */
-      if(length == 17)
-      {
-        imu_data.header.stamp.fromNSec(stamp);
-        imu_data.header.frame_id = "imu";
-        imu_data.orientation.x = q_x;
-        imu_data.orientation.y = q_y;
-        imu_data.orientation.z = q_z;
-        imu_data.orientation.w = q_w;
-        imu_data.angular_velocity.x = g_x;
-        imu_data.angular_velocity.y = g_y;
-        imu_data.angular_velocity.z = g_z;
-        imu_data.linear_acceleration.x = a_x;
-        imu_data.linear_acceleration.y = a_y;
-        imu_data.linear_acceleration.z = a_z;
-
-        imu_data.orientation_covariance[0] = 3;
-        imu_data.orientation_covariance[4] = 3;
-        imu_data.orientation_covariance[8] = 3;
-        imu_data.angular_velocity_covariance[0] = 3;
-        imu_data.angular_velocity_covariance[4] = 3;
-        imu_data.angular_velocity_covariance[8] = 3;
-        imu_data.linear_acceleration_covariance[0] = 3;
-        imu_data.linear_acceleration_covariance[4] = 3;
-        imu_data.linear_acceleration_covariance[8] = 3;
-
-        imu_data_[stamp] = imu_data;
-
-        mag_data.magnetic_field.x = m_x;
-        mag_data.magnetic_field.y = m_y;
-        mag_data.magnetic_field.z = m_z;
-        mag_data_[stamp] = mag_data;
-        imu_data_version_ = 2;
-
-        // imu_data_origin.header.stamp.fromNSec(stamp);
-        // imu_data_origin.header.frame_id = "imu";
-        // imu_data_origin.quaternion_data.x = q_x;
-        // imu_data_origin.quaternion_data.y = q_y;
-        // imu_data_origin.quaternion_data.z = q_z;
-        // imu_data_origin.quaternion_data.w = q_w;
-        // imu_data_origin.eular_data.x = x;
-        // imu_data_origin.eular_data.y = y;
-        // imu_data_origin.eular_data.z = z;
-        // imu_data_origin.gyro_data.x = g_x;
-        // imu_data_origin.gyro_data.y = g_y;
-        // imu_data_origin.gyro_data.z = g_z;
-        // imu_data_origin.acceleration_data.x = a_x;
-        // imu_data_origin.acceleration_data.y = a_y;
-        // imu_data_origin.acceleration_data.z = a_z;
-        // imu_data_origin.magneticfield_data.x = m_x;
-        // imu_data_origin.magneticfield_data.y = m_y;
-        // imu_data_origin.magneticfield_data.z = m_z;
-        // imu_data_origin_[stamp] = imu_data_origin;
-      }
-    }
-    cout << "IMU data are loaded" << endl;
-  } // read IMU
-
   ouster_file_list_.clear();
   radarpolar_file_list_.clear();
 
@@ -282,10 +158,7 @@ ROSThread::Ready()
   radarpolar_thread_.active_ = true;
 
   data_stamp_thread_.thread_ = std::thread(&ROSThread::DataStampThread,this);
-  gps_thread_.thread_ = std::thread(&ROSThread::GpsThread,this);
-  imu_thread_.thread_ = std::thread(&ROSThread::ImuThread,this);
   ouster_thread_.thread_ = std::thread(&ROSThread::OusterThread,this);
-  radarpolar_thread_.thread_ = std::thread(&ROSThread::RadarpolarThread,this);
 }
 
 
@@ -403,59 +276,6 @@ ROSThread::DataStampThread()
   cout << "Data publish complete" << endl;
 }
 
-
-void ROSThread::GpsThread()
-{
-  while(1){
-    std::unique_lock<std::mutex> ul(gps_thread_.mutex_);
-    gps_thread_.cv_.wait(ul);
-    if(gps_thread_.active_ == false) return;
-    ul.unlock();
-
-    while(!gps_thread_.data_queue_.empty()){
-      auto data = gps_thread_.pop();
-      //process
-      if(gps_data_.find(data) != gps_data_.end()){
-        if(gps_pub_.getNumSubscribers()!=0) gps_pub_.publish(gps_data_[data]);
-      }
-
-    }
-    if(gps_thread_.active_ == false) return;
-  }
-}
-
-
-
-
-void 
-ROSThread::ImuThread()
-{
-  while(1){
-    std::unique_lock<std::mutex> ul(imu_thread_.mutex_);
-    imu_thread_.cv_.wait(ul);
-    if(imu_thread_.active_ == false) return;
-    ul.unlock();
-
-    while(!imu_thread_.data_queue_.empty())
-    {
-      auto data = imu_thread_.pop();
-      //process
-      if(imu_data_.find(data) != imu_data_.end())
-      {
-        if (imu_pub_.getNumSubscribers() != 0) imu_pub_.publish(imu_data_[data]);
-
-        // imu_origin_pub_.publish(imu_data_origin_[data]);
-        if(imu_data_version_ == 2)
-        {
-          if(magnet_pub_.getNumSubscribers()!=0) magnet_pub_.publish(mag_data_[data]); // Warning publisher has not been initialized
-        }
-      }
-    }
-    if(imu_thread_.active_ == false) return;
-  }
-}
-
-
 void 
 ROSThread::TimerCallback(const ros::TimerEvent&)
 {
@@ -565,80 +385,6 @@ ROSThread::OusterThread()
   }
 }
 
-
-void 
-ROSThread::RadarpolarThread()
-{
-  int current_img_index = 0;
-  int previous_img_index = 0;
-
-  while(1){
-    std::unique_lock<std::mutex> ul(radarpolar_thread_.mutex_);
-    radarpolar_thread_.cv_.wait(ul);
-    if(radarpolar_thread_.active_ == false)
-      return;
-    ul.unlock();
-
-    while(!radarpolar_thread_.data_queue_.empty())
-    {
-      auto data = radarpolar_thread_.pop();
-      //process
-      if(radarpolar_file_list_.size() == 0) continue;
-
-      //publish
-      if( to_string(data)+".png" == radarpolar_next_.first && !radarpolar_next_.second.empty() )
-      {
-        cv_bridge::CvImage radarpolar_out_msg;
-        radarpolar_out_msg.header.stamp.fromNSec(data);
-        radarpolar_out_msg.header.frame_id = "radar_polar";
-        radarpolar_out_msg.encoding = sensor_msgs::image_encodings::MONO8;
-        radarpolar_out_msg.image    = radarpolar_next_.second;
-        if (radarpolar_pub_.getNumSubscribers() != 0)
-          radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
-      }
-      else
-      {
-        string current_radarpolar_name = data_folder_path_ + "/sensor_data/radar/polar" + "/" + to_string(data) + ".png";
-
-        cv::Mat radarpolar_image;
-        radarpolar_image = imread(current_radarpolar_name, CV_LOAD_IMAGE_GRAYSCALE);
-        if(!radarpolar_image.empty())
-        {
-
-          cv_bridge::CvImage radarpolar_out_msg;
-          radarpolar_out_msg.header.stamp.fromNSec(data);
-          radarpolar_out_msg.header.frame_id = "radar_polar";
-          radarpolar_out_msg.encoding = sensor_msgs::image_encodings::MONO8;
-          radarpolar_out_msg.image    = radarpolar_image;
-          if (radarpolar_pub_.getNumSubscribers() != 0)
-            radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
-        }
-        previous_img_index = 0;
-      }
-
-      //load next image
-      current_img_index = find( next(radarpolar_file_list_.begin(),max(0,previous_img_index - search_bound_)), radarpolar_file_list_.end(), to_string(data)+".png" ) - radarpolar_file_list_.begin();
-      if(current_img_index < radarpolar_file_list_.size()-2)
-      {
-        string next_radarpolar_name = data_folder_path_ + "/radar/polar" +"/"+ radarpolar_file_list_[current_img_index+1];
-
-        cv::Mat radarpolar_image;
-        radarpolar_image = imread(next_radarpolar_name, CV_LOAD_IMAGE_COLOR);
-
-        if(!radarpolar_image.empty())
-        {
-          cv::cvtColor(radarpolar_image, radarpolar_image, cv::COLOR_RGB2BGR);
-          radarpolar_next_ = make_pair(radarpolar_file_list_[current_img_index+1], radarpolar_image);
-        }
-      }
-      previous_img_index = current_img_index;
-    }
-    
-    if(radarpolar_thread_.active_ == false) return;
-  }
-}
-
-
 int 
 ROSThread::GetDirList(string dir, vector<string> &files)
 {
@@ -707,86 +453,94 @@ ROSThread::ResetProcessStamp(int position)
   }
 }
 
-
-
-void ROSThread::SaveRosbag()
-{
+void ROSThread::SaveRosbag() {
   rosbag::Bag bag;
-  const std::string bag_path = data_folder_path_+"/output.bag";
-  bag.open(data_folder_path_+"/output.bag", rosbag::bagmode::Write);
-  cout<<"Storing bag to: "<<bag_path<<endl;
+  const std::string bag_path = data_folder_path_ + "/output.bag";
+  bag.open(bag_path, rosbag::bagmode::Write);
+  cout << "Storing bag to: " << bag_path << endl;
 
+  GetDirList(data_folder_path_ + "/sensor_data/Ouster", ouster_file_list_);
 
-  GetDirList(data_folder_path_ + "/sensor_data/radar/polar", radarpolar_file_list_);
+  int current_file_index = 0;
+  int previous_file_index = 0;
 
-  int current_img_index = 0;
-  int previous_img_index = 0;
-
-
-  cout<<"Found: "<<radarpolar_file_list_.size()<<" radar sweeps"<<endl;
+  cout << "Found: " << ouster_file_list_.size() << " lidar sweeps" << endl;
   int count = 1;
-  for(auto && file_name : radarpolar_file_list_){
+  for (auto &&file_name : ouster_file_list_) {
+    cout << "lidar: " << count++ << "/" << ouster_file_list_.size() << endl;
 
-    cv::Mat radarpolar_image;
-    const std::string file_path = data_folder_path_ + "/sensor_data/radar/polar/" + file_name;
-    cout<<"radar: "<<count++<<"/"<<radarpolar_file_list_.size()<<endl;
-    //cout<<"load ("<<count++<<"/"<<radarpolar_file_list_.size()<<") from: "<<file_path<<endl;
-    radarpolar_image = imread(file_path, 0);
+    pcl::PointCloud<PointXYZIRT> cloud;
+    cloud.clear();
+    sensor_msgs::PointCloud2 publish_cloud;
+    string current_file_name =
+        data_folder_path_ + "/sensor_data/Ouster/" + file_name;
+
+    ifstream file;
+    file.open(current_file_name, ios::in | ios::binary);
+    int k = 0;
+    while (!file.eof()) {
+      PointXYZIRT point;
+      file.read(reinterpret_cast<char *>(&point.x), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.y), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.z), sizeof(float));
+      file.read(reinterpret_cast<char *>(&point.intensity), sizeof(float));
+      point.ring = (k % 64) + 1;
+      k = k + 1;
+      cloud.points.push_back(point);
+    }
+    file.close();
+
+    pcl::toROSMsg(cloud, publish_cloud);
 
     size_t lastindex = file_name.find_last_of(".");
     std::string stamp_str = file_name.substr(0, lastindex);
-    int64_t  stamp_int;
-    std::istringstream ( stamp_str ) >> stamp_int;
+    int64_t stamp_int;
+    std::istringstream(stamp_str) >> stamp_int;
 
-    cv_bridge::CvImage radarpolar_out_msg;
-    radarpolar_out_msg.header.stamp.fromNSec(stamp_int);
-    radarpolar_out_msg.header.frame_id = "radar_polar";
-    radarpolar_out_msg.encoding = sensor_msgs::image_encodings::MONO8;
-    radarpolar_out_msg.image    = radarpolar_image;
-    auto msg = radarpolar_out_msg.toImageMsg();
-    bag.write("/Navtech/Polar", msg->header.stamp, *msg);
+    publish_cloud.header.stamp.fromNSec(stamp_int);
+    publish_cloud.header.frame_id = "ouster";
+    bag.write("/ouster", publish_cloud.header.stamp, publish_cloud);
   }
+
   ////////////////////// OPEN GROUND TRUTH FILE /////////////////////
 
-  const std::string gt_csv_path = data_folder_path_+ std::string("/global_pose.csv");
+  const std::string gt_csv_path =
+      data_folder_path_ + std::string("/global_pose.csv");
   fstream fin;
   fin.open(gt_csv_path, ios::in);
-  if(fin.is_open()){
-    cout<<"loaded: "<<gt_csv_path<<endl;
+  if (fin.is_open()) {
+    cout << "loaded: " << gt_csv_path << endl;
 
     std::string temp;
-    int count  = 0;
+    int count = 0;
     nav_msgs::Odometry Tgt_msg;
     Tgt_msg.header.frame_id = "world";
     while (fin >> temp) {
-      Eigen::Matrix<double,4,4> T = Eigen::Matrix<double,4,4>::Zero();
-      T(3,3) = 1.0;
+      Eigen::Matrix<double, 4, 4> T = Eigen::Matrix<double, 4, 4>::Zero();
+      T(3, 3) = 1.0;
 
       std::vector<string> row;
 
-      stringstream  ss(temp);
+      stringstream ss(temp);
       std::string str;
-      while (getline(ss, str, ','))
-        row.push_back(str);
-      if(row.size()!=13)
-        break;
+      while (getline(ss, str, ',')) row.push_back(str);
+      if (row.size() != 13) break;
       int64_t stamp_int;
-      std::istringstream ( row[0] ) >> stamp_int;
-      for(int i=0;i<3;i++){
-        for(int j=0;j<4;j++){
-          double d = boost::lexical_cast<double> (row[1+(4*i)+j]);
-          T(i,j) = d;
+      std::istringstream(row[0]) >> stamp_int;
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+          double d = boost::lexical_cast<double>(row[1 + (4 * i) + j]);
+          T(i, j) = d;
         }
       }
 
       Eigen::Affine3d Tgt(T);
-      //std::cout<<Tgt.matrix()<<std::endl;
-      tf::poseEigenToMsg(Tgt,Tgt_msg.pose.pose);
+      tf::poseEigenToMsg(Tgt, Tgt_msg.pose.pose);
       Tgt_msg.header.stamp.fromNSec(stamp_int);
-      bag.write("/gt", Tgt_msg.header.stamp, Tgt_msg);
-      //cout<<"Written: "<<count++<<" /gt nav_msgs/odometry poses to /gt"<<endl;
+      bag.write("/groundTruth", Tgt_msg.header.stamp, Tgt_msg);
     }
   }
-  cout<<"rosbag stored at: "<<bag_path<<endl;
+
+  cout << "rosbag stored at: " << bag_path << endl;
   bag.close();
 }
