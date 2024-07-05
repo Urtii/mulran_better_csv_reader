@@ -82,6 +82,7 @@ ROSThread::ros_initialize(ros::NodeHandle &n)
   clock_pub_ = nh_.advertise<rosgraph_msgs::Clock>("/clock", 1);
   gps_pub_ = nh_.advertise<sensor_msgs::NavSatFix>("/gps/fix", 1000);
   imu_pub_ = nh_.advertise<sensor_msgs::Imu>("/imu/data_raw", 1000);
+  magnet_pub_ = nh_.advertise<sensor_msgs::MagneticField>("/mag_data", 1000);
   ouster_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/os1_points", 1000); // giseop
   radarpolar_pub_ = nh_.advertise<sensor_msgs::Image>("/radar/polar", 10); // giseop
 }
@@ -148,16 +149,18 @@ ROSThread::Ready()
 
 
   //Read gps data
-  fp = fopen((data_folder_path_+"/sensor_data/gps.csv").c_str(),"r");
+  //fp = fopen((data_folder_path_+"/sensor_data/gps.csv").c_str(),"r");
+  io::CSVReader<17> in((data_folder_path_ + "/sensor_data/gps.csv").c_str());
   double latitude, longitude, altitude, altitude_orthometric;
   double cov[9];
   sensor_msgs::NavSatFix gps_data;
   gps_data_.clear();
-  while( fscanf(fp,"%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
-                &stamp,&latitude,&longitude,&altitude,&cov[0],&cov[1],&cov[2],&cov[3],&cov[4],&cov[5],&cov[6],&cov[7],&cov[8])
-         == 13
-         )
-  {
+  //while( fscanf(fp,"%ld,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf\n",
+  //              &stamp,&latitude,&longitude,&altitude,&cov[0],&cov[1],&cov[2],&cov[3],&cov[4],&cov[5],&cov[6],&cov[7],&cov[8])
+  //       == 13
+  //       )
+  while (in.read_row(stamp, latitude, longitude, altitude, cov[0], cov[1],
+                     cov[2], cov[3], cov[4], cov[5], cov[6], cov[7], cov[8])) {
     gps_data.header.stamp.fromNSec(stamp);
     gps_data.header.frame_id = "gps";
     gps_data.latitude = latitude;
@@ -413,7 +416,7 @@ void ROSThread::GpsThread()
       auto data = gps_thread_.pop();
       //process
       if(gps_data_.find(data) != gps_data_.end()){
-        gps_pub_.publish(gps_data_[data]);
+        if(gps_pub_.getNumSubscribers()!=0) gps_pub_.publish(gps_data_[data]);
       }
 
     }
@@ -439,12 +442,12 @@ ROSThread::ImuThread()
       //process
       if(imu_data_.find(data) != imu_data_.end())
       {
-        imu_pub_.publish(imu_data_[data]);
+        if (imu_pub_.getNumSubscribers() != 0) imu_pub_.publish(imu_data_[data]);
 
         // imu_origin_pub_.publish(imu_data_origin_[data]);
         if(imu_data_version_ == 2)
         {
-          magnet_pub_.publish(mag_data_[data]); // Warning publisher has not been initialized
+          if(magnet_pub_.getNumSubscribers()!=0) magnet_pub_.publish(mag_data_[data]); // Warning publisher has not been initialized
         }
       }
     }
@@ -492,7 +495,8 @@ ROSThread::OusterThread()
         //publish
         ouster_next_.second.header.stamp.fromNSec(data);
         ouster_next_.second.header.frame_id = "ouster"; // frame ID
-        ouster_pub_.publish(ouster_next_.second);
+        if (ouster_pub_.getNumSubscribers() != 0)
+          ouster_pub_.publish(ouster_next_.second);
       }
       else
       {
@@ -523,7 +527,8 @@ ROSThread::OusterThread()
           pcl::toROSMsg(cloud, publish_cloud);
           publish_cloud.header.stamp.fromNSec(data);
           publish_cloud.header.frame_id = "ouster";
-          ouster_pub_.publish(publish_cloud);
+          if (ouster_pub_.getNumSubscribers() != 0)
+            ouster_pub_.publish(publish_cloud);
         }
         previous_file_index = 0;
       }
@@ -588,7 +593,8 @@ ROSThread::RadarpolarThread()
         radarpolar_out_msg.header.frame_id = "radar_polar";
         radarpolar_out_msg.encoding = sensor_msgs::image_encodings::MONO8;
         radarpolar_out_msg.image    = radarpolar_next_.second;
-        radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
+        if (radarpolar_pub_.getNumSubscribers() != 0)
+          radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
       }
       else
       {
@@ -604,8 +610,8 @@ ROSThread::RadarpolarThread()
           radarpolar_out_msg.header.frame_id = "radar_polar";
           radarpolar_out_msg.encoding = sensor_msgs::image_encodings::MONO8;
           radarpolar_out_msg.image    = radarpolar_image;
-          radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
-
+          if (radarpolar_pub_.getNumSubscribers() != 0)
+            radarpolar_pub_.publish(radarpolar_out_msg.toImageMsg());
         }
         previous_img_index = 0;
       }
