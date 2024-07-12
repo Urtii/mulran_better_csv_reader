@@ -499,6 +499,67 @@ void ROSThread::SaveRosbag() {
     }
   }
 
+  ////////////////////// OPEN IMU FILE /////////////////////
+
+  const std::string xsens_csv_path =
+      data_folder_path_ + std::string("/sensor_data/xsens_imu.csv");
+  fin.open(xsens_csv_path, ios::in);
+  if (fin.is_open()) {
+    cout << "loaded: " << gps_csv_path << endl;
+
+    std::string temp;
+    int count = 0;
+    sensor_msgs::Imu imu_data;
+    imu_data.header.frame_id = "Imu";
+
+    sensor_msgs::MagneticField mag_data;
+    mag_data.header.frame_id = "Magnetometer";
+
+    while (fin >> temp) {
+      std::vector<string> row;
+
+      stringstream ss(temp);
+      std::string str;
+      while (getline(ss, str, ',')) row.push_back(str);
+      if (row.size() != 17) break;
+      int64_t stamp_int;
+      std::istringstream(row[0]) >> stamp_int;
+      imu_data.header.stamp.fromNSec(stamp_int);
+      mag_data.header.stamp.fromNSec(stamp_int);
+
+      imu_data.orientation.x = boost::lexical_cast<double>(row[1]);
+      imu_data.orientation.y = boost::lexical_cast<double>(row[2]);
+      imu_data.orientation.z = boost::lexical_cast<double>(row[3]);
+      imu_data.orientation.w = boost::lexical_cast<double>(row[4]);
+      imu_data.angular_velocity.x = boost::lexical_cast<double>(row[8]);
+      imu_data.angular_velocity.y = boost::lexical_cast<double>(row[9]);
+      imu_data.angular_velocity.z = boost::lexical_cast<double>(row[10]);
+      imu_data.linear_acceleration.x = boost::lexical_cast<double>(row[11]);
+      imu_data.linear_acceleration.y = boost::lexical_cast<double>(row[12]);
+      imu_data.linear_acceleration.z = boost::lexical_cast<double>(row[13]);
+
+      imu_data.orientation_covariance[0] = 3;
+      imu_data.orientation_covariance[4] = 3;
+      imu_data.orientation_covariance[8] = 3;
+      imu_data.angular_velocity_covariance[0] = 3;
+      imu_data.angular_velocity_covariance[4] = 3;
+      imu_data.angular_velocity_covariance[8] = 3;
+      imu_data.linear_acceleration_covariance[0] = 3;
+      imu_data.linear_acceleration_covariance[4] = 3;
+      imu_data.linear_acceleration_covariance[8] = 3;
+
+      mag_data.magnetic_field.x = boost::lexical_cast<double>(row[14]);
+      mag_data.magnetic_field.y = boost::lexical_cast<double>(row[15]);
+      mag_data.magnetic_field.z = boost::lexical_cast<double>(row[16]);
+      mag_data.magnetic_field_covariance[0] = 3;
+      mag_data.magnetic_field_covariance[1] = 3;
+      mag_data.magnetic_field_covariance[2] = 3;
+
+      bag.write("/imu", imu_data.header.stamp, imu_data);
+      bag.write("/magnetometer", mag_data.header.stamp, mag_data);
+    }
+  }
+
   ////////////////////// OPEN GROUND TRUTH FILE /////////////////////
 
   const std::string gt_csv_path =
