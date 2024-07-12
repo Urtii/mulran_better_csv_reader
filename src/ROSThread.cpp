@@ -63,10 +63,9 @@ ROSThread::~ROSThread() {
 }
 
 void ROSThread::ros_initialize(ros::NodeHandle &n) {
-
   pre_timer_stamp_ = ros::Time::now().toNSec();
   timer_ = n.createTimer(ros::Duration(0.0001),
-                           boost::bind(&ROSThread::TimerCallback, this, _1));
+                         boost::bind(&ROSThread::TimerCallback, this, _1));
 
   start_sub_ = n.subscribe<std_msgs::Bool>(
       "/file_player_start", 1,
@@ -463,11 +462,47 @@ void ROSThread::SaveRosbag() {
     bag.write("/ouster", publish_cloud.header.stamp, publish_cloud);
   }
 
+  ////////////////////// OPEN GPS FILE /////////////////////
+
+  const std::string gps_csv_path =
+      data_folder_path_ + std::string("/sensor_data/gps.csv");
+  fstream fin;
+  fin.open(gps_csv_path, ios::in);
+  if (fin.is_open()) {
+    cout << "loaded: " << gps_csv_path << endl;
+
+    std::string temp;
+    int count = 0;
+    sensor_msgs::NavSatFix Tgps_msg;
+    Tgps_msg.header.frame_id = "LLA";
+    while (fin >> temp) {
+      std::vector<string> row;
+
+      stringstream ss(temp);
+      std::string str;
+      while (getline(ss, str, ',')) row.push_back(str);
+      if (row.size() != 13) break;
+      int64_t stamp_int;
+      std::istringstream(row[0]) >> stamp_int;
+      Tgps_msg.header.stamp.fromNSec(stamp_int);
+
+      Tgps_msg.latitude = boost::lexical_cast<double>(row[1]);
+      Tgps_msg.longitude = boost::lexical_cast<double>(row[2]);
+      Tgps_msg.altitude = boost::lexical_cast<double>(row[3]);
+
+      Tgps_msg.position_covariance[0] = boost::lexical_cast<double>(row[4]);
+      Tgps_msg.position_covariance[4] = boost::lexical_cast<double>(row[8]);
+      Tgps_msg.position_covariance[8] = boost::lexical_cast<double>(row[12]);
+      Tgps_msg.position_covariance_type = 2;
+
+      bag.write("/gps", Tgps_msg.header.stamp, Tgps_msg);
+    }
+  }
+
   ////////////////////// OPEN GROUND TRUTH FILE /////////////////////
 
   const std::string gt_csv_path =
       data_folder_path_ + std::string("/global_pose.csv");
-  fstream fin;
   fin.open(gt_csv_path, ios::in);
   if (fin.is_open()) {
     cout << "loaded: " << gt_csv_path << endl;
