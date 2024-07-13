@@ -415,7 +415,7 @@ void ROSThread::ResetProcessStamp(int position) {
 
 void ROSThread::SaveRosbag() {
   rosbag::Bag bag;
-  const std::string bag_path = data_folder_path_ + "/output.bag";
+  const std::string bag_path = data_folder_path_ + "/LiDAR_INS_gT.bag";
   bag.open(bag_path, rosbag::bagmode::Write);
   cout << "Storing bag to: " << bag_path << endl;
 
@@ -427,7 +427,8 @@ void ROSThread::SaveRosbag() {
   cout << "Found: " << ouster_file_list_.size() << " lidar sweeps" << endl;
   int count = 1;
   for (auto &&file_name : ouster_file_list_) {
-    cout << "lidar: " << count++ << "/" << ouster_file_list_.size() << endl;
+    if (!(count++ % 1000))
+      cout << "LiDAR: " << count << "/" << ouster_file_list_.size() << endl;
 
     pcl::PointCloud<PointXYZIRT> cloud;
     cloud.clear();
@@ -474,28 +475,33 @@ void ROSThread::SaveRosbag() {
     std::string temp;
     int count = 0;
     sensor_msgs::NavSatFix Tgps_msg;
-    Tgps_msg.header.frame_id = "LLA";
+    Tgps_msg.header.frame_id = "gps_link";
     while (fin >> temp) {
+      if (!(count++ % 1000)) cout << "GPS: " << count << endl;
       std::vector<string> row;
 
       stringstream ss(temp);
       std::string str;
       while (getline(ss, str, ',')) row.push_back(str);
-      if (row.size() != 13) break;
-      int64_t stamp_int;
-      std::istringstream(row[0]) >> stamp_int;
-      Tgps_msg.header.stamp.fromNSec(stamp_int);
+      if (row.size() != 13) {
+        cout << "Inappropriate GPS data at line " << count << ": " << str
+             << endl;
+      } else {
+        int64_t stamp_int;
+        std::istringstream(row[0]) >> stamp_int;
+        Tgps_msg.header.stamp.fromNSec(stamp_int);
 
-      Tgps_msg.latitude = boost::lexical_cast<double>(row[1]);
-      Tgps_msg.longitude = boost::lexical_cast<double>(row[2]);
-      Tgps_msg.altitude = boost::lexical_cast<double>(row[3]);
+        Tgps_msg.latitude = boost::lexical_cast<double>(row[1]);
+        Tgps_msg.longitude = boost::lexical_cast<double>(row[2]);
+        Tgps_msg.altitude = boost::lexical_cast<double>(row[3]);
 
-      Tgps_msg.position_covariance[0] = boost::lexical_cast<double>(row[4]);
-      Tgps_msg.position_covariance[4] = boost::lexical_cast<double>(row[8]);
-      Tgps_msg.position_covariance[8] = boost::lexical_cast<double>(row[12]);
-      Tgps_msg.position_covariance_type = 2;
+        Tgps_msg.position_covariance[0] = boost::lexical_cast<double>(row[4]);
+        Tgps_msg.position_covariance[4] = boost::lexical_cast<double>(row[8]);
+        Tgps_msg.position_covariance[8] = boost::lexical_cast<double>(row[12]);
+        Tgps_msg.position_covariance_type = 2;
 
-      bag.write("/gps", Tgps_msg.header.stamp, Tgps_msg);
+        bag.write("/gps", Tgps_msg.header.stamp, Tgps_msg);
+      }
     }
   }
 
@@ -503,60 +509,66 @@ void ROSThread::SaveRosbag() {
 
   const std::string xsens_csv_path =
       data_folder_path_ + std::string("/sensor_data/xsens_imu.csv");
-  fin.open(xsens_csv_path, ios::in);
-  if (fin.is_open()) {
-    cout << "loaded: " << gps_csv_path << endl;
+  fstream xsens_in;
+  xsens_in.open(xsens_csv_path, ios::in);
+  if (xsens_in.is_open()) {
+    cout << "loaded: " << xsens_csv_path << endl;
 
     std::string temp;
     int count = 0;
     sensor_msgs::Imu imu_data;
-    imu_data.header.frame_id = "Imu";
+    imu_data.header.frame_id = "imu_link";
 
     sensor_msgs::MagneticField mag_data;
-    mag_data.header.frame_id = "Magnetometer";
+    mag_data.header.frame_id = "magnetometer_link";
 
-    while (fin >> temp) {
+    while (xsens_in >> temp) {
+      if (!(count++ % 10000)) cout << "IMU: " << count << endl;
       std::vector<string> row;
 
       stringstream ss(temp);
       std::string str;
       while (getline(ss, str, ',')) row.push_back(str);
-      if (row.size() != 17) break;
-      int64_t stamp_int;
-      std::istringstream(row[0]) >> stamp_int;
-      imu_data.header.stamp.fromNSec(stamp_int);
-      mag_data.header.stamp.fromNSec(stamp_int);
+      if (row.size() != 17) {
+        cout << "Inappropriate IMU data at line " << count << ": " << str
+             << endl;
+      } else {
+        int64_t stamp_int;
+        std::istringstream(row[0]) >> stamp_int;
+        imu_data.header.stamp.fromNSec(stamp_int);
+        mag_data.header.stamp.fromNSec(stamp_int);
 
-      imu_data.orientation.x = boost::lexical_cast<double>(row[1]);
-      imu_data.orientation.y = boost::lexical_cast<double>(row[2]);
-      imu_data.orientation.z = boost::lexical_cast<double>(row[3]);
-      imu_data.orientation.w = boost::lexical_cast<double>(row[4]);
-      imu_data.angular_velocity.x = boost::lexical_cast<double>(row[8]);
-      imu_data.angular_velocity.y = boost::lexical_cast<double>(row[9]);
-      imu_data.angular_velocity.z = boost::lexical_cast<double>(row[10]);
-      imu_data.linear_acceleration.x = boost::lexical_cast<double>(row[11]);
-      imu_data.linear_acceleration.y = boost::lexical_cast<double>(row[12]);
-      imu_data.linear_acceleration.z = boost::lexical_cast<double>(row[13]);
+        imu_data.orientation.x = boost::lexical_cast<double>(row[1]);
+        imu_data.orientation.y = boost::lexical_cast<double>(row[2]);
+        imu_data.orientation.z = boost::lexical_cast<double>(row[3]);
+        imu_data.orientation.w = boost::lexical_cast<double>(row[4]);
+        imu_data.angular_velocity.x = boost::lexical_cast<double>(row[8]);
+        imu_data.angular_velocity.y = boost::lexical_cast<double>(row[9]);
+        imu_data.angular_velocity.z = boost::lexical_cast<double>(row[10]);
+        imu_data.linear_acceleration.x = boost::lexical_cast<double>(row[11]);
+        imu_data.linear_acceleration.y = boost::lexical_cast<double>(row[12]);
+        imu_data.linear_acceleration.z = boost::lexical_cast<double>(row[13]);
 
-      imu_data.orientation_covariance[0] = 3;
-      imu_data.orientation_covariance[4] = 3;
-      imu_data.orientation_covariance[8] = 3;
-      imu_data.angular_velocity_covariance[0] = 3;
-      imu_data.angular_velocity_covariance[4] = 3;
-      imu_data.angular_velocity_covariance[8] = 3;
-      imu_data.linear_acceleration_covariance[0] = 3;
-      imu_data.linear_acceleration_covariance[4] = 3;
-      imu_data.linear_acceleration_covariance[8] = 3;
+        imu_data.orientation_covariance[0] = 3;
+        imu_data.orientation_covariance[4] = 3;
+        imu_data.orientation_covariance[8] = 3;
+        imu_data.angular_velocity_covariance[0] = 3;
+        imu_data.angular_velocity_covariance[4] = 3;
+        imu_data.angular_velocity_covariance[8] = 3;
+        imu_data.linear_acceleration_covariance[0] = 3;
+        imu_data.linear_acceleration_covariance[4] = 3;
+        imu_data.linear_acceleration_covariance[8] = 3;
 
-      mag_data.magnetic_field.x = boost::lexical_cast<double>(row[14]);
-      mag_data.magnetic_field.y = boost::lexical_cast<double>(row[15]);
-      mag_data.magnetic_field.z = boost::lexical_cast<double>(row[16]);
-      mag_data.magnetic_field_covariance[0] = 3;
-      mag_data.magnetic_field_covariance[1] = 3;
-      mag_data.magnetic_field_covariance[2] = 3;
+        mag_data.magnetic_field.x = boost::lexical_cast<double>(row[14]);
+        mag_data.magnetic_field.y = boost::lexical_cast<double>(row[15]);
+        mag_data.magnetic_field.z = boost::lexical_cast<double>(row[16]);
+        mag_data.magnetic_field_covariance[0] = 3;
+        mag_data.magnetic_field_covariance[1] = 3;
+        mag_data.magnetic_field_covariance[2] = 3;
 
-      bag.write("/imu", imu_data.header.stamp, imu_data);
-      bag.write("/magnetometer", mag_data.header.stamp, mag_data);
+        bag.write("/imu", imu_data.header.stamp, imu_data);
+        bag.write("/magnetometer", mag_data.header.stamp, mag_data);
+      }
     }
   }
 
@@ -564,15 +576,17 @@ void ROSThread::SaveRosbag() {
 
   const std::string gt_csv_path =
       data_folder_path_ + std::string("/global_pose.csv");
-  fin.open(gt_csv_path, ios::in);
-  if (fin.is_open()) {
+  fstream gT_in;
+  gT_in.open(gt_csv_path, ios::in);
+  if (gT_in.is_open()) {
     cout << "loaded: " << gt_csv_path << endl;
 
     std::string temp;
     int count = 0;
     nav_msgs::Odometry Tgt_msg;
-    Tgt_msg.header.frame_id = "world";
-    while (fin >> temp) {
+    Tgt_msg.header.frame_id = "UTM_52S";
+    while (gT_in >> temp) {
+      if (!(count++ % 10000)) cout << "gT: " << count << endl;
       Eigen::Matrix<double, 4, 4> T = Eigen::Matrix<double, 4, 4>::Zero();
       T(3, 3) = 1.0;
 
@@ -581,20 +595,24 @@ void ROSThread::SaveRosbag() {
       stringstream ss(temp);
       std::string str;
       while (getline(ss, str, ',')) row.push_back(str);
-      if (row.size() != 13) break;
-      int64_t stamp_int;
-      std::istringstream(row[0]) >> stamp_int;
-      for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 4; j++) {
-          double d = boost::lexical_cast<double>(row[1 + (4 * i) + j]);
-          T(i, j) = d;
+      if (row.size() != 13) {
+        cout << "Inappropriate gT data at line " << count << ": " << str
+             << endl;
+      } else {
+        int64_t stamp_int;
+        std::istringstream(row[0]) >> stamp_int;
+        for (int i = 0; i < 3; i++) {
+          for (int j = 0; j < 4; j++) {
+            double d = boost::lexical_cast<double>(row[1 + (4 * i) + j]);
+            T(i, j) = d;
+          }
         }
-      }
 
-      Eigen::Affine3d Tgt(T);
-      tf::poseEigenToMsg(Tgt, Tgt_msg.pose.pose);
-      Tgt_msg.header.stamp.fromNSec(stamp_int);
-      bag.write("/groundTruth", Tgt_msg.header.stamp, Tgt_msg);
+        Eigen::Affine3d Tgt(T);
+        tf::poseEigenToMsg(Tgt, Tgt_msg.pose.pose);
+        Tgt_msg.header.stamp.fromNSec(stamp_int);
+        bag.write("/groundTruth", Tgt_msg.header.stamp, Tgt_msg);
+      }
     }
   }
 
